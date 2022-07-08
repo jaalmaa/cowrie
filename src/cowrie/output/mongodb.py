@@ -48,12 +48,12 @@ class Output(cowrie.core.output.Output):
             log.msg(sessiondata)
             self.col_sessiondata.insert_one(sessiondata)
 
-        elif eventid in ["cowrie.command.input", "cowrie.command.failed"]:
+        elif eventid == "cowrie.command.input":
             self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"commands": entry["input"]}})
 
         elif eventid in ["cowrie.session.file_download", "cowrie.session.file_download.failed"]:
             sessiondata["url"] = entry["url"]
-            if eventid == "cowrie.session.file_download":
+            if eventid == "cowrie.session.file_download" and entry["shasum"]:
                 self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": entry["shasum"]}})
             self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"url": entry["url"]}})
 
