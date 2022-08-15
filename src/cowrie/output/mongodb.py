@@ -1,11 +1,13 @@
 from __future__ import annotations
 import pymongo
+from gridfs import GridFS
 
 from twisted.python import log
 
 import cowrie.core.output
 from cowrie.core.config import CowrieConfig
 
+import os
 
 class Output(cowrie.core.output.Output):
     """
@@ -20,6 +22,7 @@ class Output(cowrie.core.output.Output):
             self.mongo_client = pymongo.MongoClient(db_addr)
             self.mongo_db = self.mongo_client[db_name]
             self.col_sessiondata = self.mongo_db["sessiondata"]
+            self.files = GridFS(self.mongo_db)
         except Exception as e:
             log.msg(f"output_mongodb: Error: {str(e)}")
 
@@ -51,13 +54,18 @@ class Output(cowrie.core.output.Output):
         elif eventid == "cowrie.command.input":
             self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"commands": entry["input"]}})
 
-        elif eventid in ["cowrie.session.file_download", "cowrie.session.file_download.failed"]:
-            sessiondata["url"] = entry["url"]
-            if eventid == "cowrie.session.file_download" and entry["shasum"]:
-                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": entry["shasum"]}})
-            self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"url": entry["url"]}})
+        elif eventid in ["cowrie.session.file_download", "cowrie.session.file_download.failed", "cowrie.session.file_upload"]: # upload event triggered by sftp/scp
+            if (eventid == "cowrie.session.file_download" or eventid == "cowrie.session.file_upload") and entry["shasum"]:
+                if not self.files.exists({"filename": entry["shasum"]}):
+                    with open("var/lib/cowrie/downloads/" + entry["shasum"], 'rb') as f:
+                        self.files.put(f, filename=entry["shasum"])
 
-        elif eventid == "cowrie.log.closed":
+                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": entry["shasum"]}}, upsert=True)
+            
+            if "url" in entry:
+                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"url": entry["url"]}})
+
+        elif eventid == "cowrie.log.closed" or eventid == "cowrie.session.closed":
             doc = self.col_sessiondata.find_one({"session": entry["session"]})
             if doc:
                 sessiondata["endTime"] = entry["timestamp"]
