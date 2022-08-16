@@ -70,3 +70,6 @@ class Output(cowrie.core.output.Output):
             if doc:
                 sessiondata["endTime"] = entry["timestamp"]
                 self.col_sessiondata.update_one({"session": entry["session"]}, {"$set": {"endTime": sessiondata["endTime"]}})
+
+                if doc["shasum"] and not doc["commands"]:
+                    self.col_sessiondata.update_one({"session": entry["session"]}, {"$set": {"fileAnalysed": False}}) # For uploads without commands to force analysis of files
