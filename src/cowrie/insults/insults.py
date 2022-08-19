@@ -156,8 +156,8 @@ class LoggingServerProtocol(insults.ServerProtocol):
                         duplicate = False
 
                 log.msg(
-                    eventid="cowrie.session.file_download",
-                    format="Saved stdin contents with SHA-256 %(shasum)s to %(outfile)s",
+                    eventid="cowrie.session.file_upload", # seemingly only triggered on SCP upload
+                    format="Possible SCP - saved stdin contents with SHA-256 %(shasum)s to %(outfile)s",
                     duplicate=duplicate,
                     outfile=shasumfile,
                     shasum=shasum,
