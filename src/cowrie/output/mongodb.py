@@ -64,31 +64,31 @@ class Output(cowrie.core.output.Output):
                 with open("var/lib/cowrie/downloads/" + entry["shasum"], 'rb') as f:
                     
                     data = f.read()
+                    shasum = entry["shasum"]
 
                     header_match = self.regex.match(data) # matches format of SCP metadata
-
-                    if not header_match:
-                        if not self.files.exists({"filename": entry["shasum"]}):
-                            self.files.put(f, filename=entry["shasum"])
 
                 if header_match:
                     with open("var/lib/cowrie/downloads/" + entry["shasum"], 'r+b') as f:
                         f.write(data[header_match.end()+1:-1]) # -1 removes extra null byte provided by SCP
+
+                        entry["filename"] = data[:header_match.end()+1].split()[2].decode()
+
                         f.truncate() # these two lines remove SCP metadata
                         shasum = hashlib.sha256(data[header_match.end()+1:-1]).hexdigest()
-                        
-                        if not self.files.exists({"filename": shasum}):
-                            self.files.put(f, filename=shasum)
 
                     os.rename("var/lib/cowrie/downloads/" + entry["shasum"], "var/lib/cowrie/downloads/" + str(shasum))
 
-                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": entry["shasum"]}}, upsert=True)
+                if not self.files.exists({"filename": shasum}):
+                    self.files.put(open("var/lib/cowrie/downloads/" + shasum, 'rb'), filename=shasum)
+
+                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": shasum}}, upsert=True)
             
             if "url" in entry:
                 self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"url": entry["url"]}})
 
-            if "filename" in entry: # file_upload events i.e SFTP + make sure all files tagged with name
-                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"filenames."+str(entry["shasum"]): entry["filename"]}})
+            if "filename" in entry and eventid == "cowrie.session.file_upload": # file_upload events get tagged with name. check necessary as download events filename field is path cowrie stores in as opposed to original name
+                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"filenames."+shasum: entry["filename"]}})
 
 
         elif eventid == "cowrie.log.closed" or eventid == "cowrie.session.closed":
