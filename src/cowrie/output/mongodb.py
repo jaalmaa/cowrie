@@ -21,7 +21,7 @@ class Output(cowrie.core.output.Output):
         db_name = CowrieConfig.get("output_mongodb", "database")
 
         try:
-            self.mongo_client = pymongo.MongoClient(db_addr)
+            self.mongo_client = pymongo.MongoClient(db_addr, connect=False)
             self.mongo_db = self.mongo_client[db_name]
             self.col_sessiondata = self.mongo_db["sessiondata"]
             self.files = GridFS(self.mongo_db)
