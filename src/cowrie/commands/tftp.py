@@ -57,9 +57,12 @@ class Command_tftp(HoneyPotCommand):
             else:
                 self.fs.mkfile(self.file_to_get, 0, 0, 0, 33188)
 
+            self.artifactFile.close()
+
         except tftpy.TftpException:
             if tclient and tclient.context and not tclient.context.fileobj.closed:
                 tclient.context.fileobj.close()
+
 
         if url:
             # log to cowrie.log
