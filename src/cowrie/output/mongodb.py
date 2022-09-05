@@ -60,7 +60,7 @@ class Output(cowrie.core.output.Output):
             self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"commands": entry["input"]}})
 
         elif eventid in ["cowrie.session.file_download", "cowrie.session.file_download.failed", "cowrie.session.file_upload"]: # upload event to expand coverage of files
-            if (eventid == "cowrie.session.file_download" or eventid == "cowrie.session.file_upload") and entry["shasum"]:
+            if (eventid == "cowrie.session.file_download" or eventid == "cowrie.session.file_upload") and entry["shasum"]: 
         
                 with open("var/lib/cowrie/downloads/" + entry["shasum"], 'rb') as f:
                     
@@ -94,6 +94,12 @@ class Output(cowrie.core.output.Output):
                     )
 
                     os.remove("var/lib/cowrie/downloads/" + entry["shasum"])
+
+                else: # for all non-SCP files
+                    if not self.files.exists({"filename": shasum}):
+                        self.files.put(open("var/lib/cowrie/downloads/" + shasum, 'rb'), filename=shasum)
+
+                    self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": shasum}}, upsert=True)
 
             if "url" in entry:
                 self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"url": entry["url"]}})

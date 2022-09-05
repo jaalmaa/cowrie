@@ -297,14 +297,14 @@ class Command_wget(HoneyPotCommand):
 
         self.protocol.logDispatch(
             eventid="cowrie.session.file_download",
-            format="Downloaded URL (%(url)s) with SHA-256 %(shasum)s to %(filename)s",
+            format="Downloaded URL (%(url)s) with SHA-256 %(shasum)s to %(outfile)s",
             url=self.url,
             outfile=self.artifact.shasumFilename,
             shasum=self.artifact.shasum,
         )
         log.msg(
             eventid="cowrie.session.file_download",
-            format="Downloaded URL (%(url)s) with SHA-256 %(shasum)s to %(filename)s",
+            format="Downloaded URL (%(url)s) with SHA-256 %(shasum)s to %(outfile)s",
             url=self.url,
             outfile=self.artifact.shasumFilename,
             shasum=self.artifact.shasum,
