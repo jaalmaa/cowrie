@@ -26,7 +26,8 @@ class Output(cowrie.core.output.Output):
             self.col_sessiondata = self.mongo_db["sessiondata"]
             self.files = GridFS(self.mongo_db)
 
-            self.regex = re.compile(b'^C0[0-7]{3} [0-9]+ .*') # matching SCP metadata header - file permissions + file size + file name
+            self.header_regex = re.compile(b'^C0[0-7]{3} [0-9]+ .*') # matching SCP metadata header - file permissions + file size + file name
+            self.not_found_regex = re.compile(b'^.+: No such file or directory')
         except Exception as e:
             log.msg(f"output_mongodb: Error: {str(e)}")
 
@@ -59,15 +60,15 @@ class Output(cowrie.core.output.Output):
             self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"commands": entry["input"]}})
 
         elif eventid in ["cowrie.session.file_download", "cowrie.session.file_download.failed", "cowrie.session.file_upload"]: # upload event to expand coverage of files
-            if (eventid == "cowrie.session.file_download" or eventid == "cowrie.session.file_upload") and entry["shasum"]:
+            if (eventid == "cowrie.session.file_download" or eventid == "cowrie.session.file_upload") and entry["shasum"]: 
         
                 with open("var/lib/cowrie/downloads/" + entry["shasum"], 'rb') as f:
                     
                     data = f.read()
                     shasum = entry["shasum"]
 
-                    header_match = self.regex.match(data) # matches format of SCP metadata
-
+                    header_match = self.header_regex.match(data) # matches format of SCP metadata
+                
                 if header_match:
                     with open("var/lib/cowrie/downloads/" + entry["shasum"], 'r+b') as f:
                         f.write(data[header_match.end()+1:-1]) # -1 removes extra null byte provided by SCP
@@ -75,20 +76,40 @@ class Output(cowrie.core.output.Output):
                         entry["filename"] = data[:header_match.end()+1].split()[2].decode()
 
                         f.truncate() # these two lines remove SCP metadata
+
                         shasum = hashlib.sha256(data[header_match.end()+1:-1]).hexdigest()
 
                     os.rename("var/lib/cowrie/downloads/" + entry["shasum"], "var/lib/cowrie/downloads/" + str(shasum))
 
-                if not self.files.exists({"filename": shasum}):
-                    self.files.put(open("var/lib/cowrie/downloads/" + shasum, 'rb'), filename=shasum)
+                    if not self.files.exists({"filename": shasum}):
+                        self.files.put(open("var/lib/cowrie/downloads/" + shasum, 'rb'), filename=shasum)
 
-                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": shasum}}, upsert=True)
-            
+                    self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": shasum}}, upsert=True)
+
+                elif (self.not_found_regex.match(data)):
+                    
+                    log.msg(
+                        format="%(shahash)s is believed to be SCP not found error so removing",
+                        shahash=entry["shasum"]
+                    )
+
+                    os.remove("var/lib/cowrie/downloads/" + entry["shasum"])
+
+                else: # for all non-SCP files
+                    if not self.files.exists({"filename": shasum}):
+                        self.files.put(open("var/lib/cowrie/downloads/" + shasum, 'rb'), filename=shasum)
+
+                    self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"shasum": shasum}}, upsert=True)
+
             if "url" in entry:
                 self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"url": entry["url"]}})
 
             if "filename" in entry and eventid == "cowrie.session.file_upload": # file_upload events get tagged with name. check necessary as download events filename field is path cowrie stores in as opposed to original name
                 self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"filenames."+shasum: entry["filename"]}})
+            
+            if eventid == "cowrie.session.file_download" and "destfile" in entry and "shasum" in entry and entry["destfile"] and entry["shasum"]:
+                filename = entry["destfile"].split('/')[-1] # getting just filename, ignoring path
+                self.col_sessiondata.update_one({"session": entry["session"]}, {"$push": {"filenames."+shasum: filename}})
 
 
         elif eventid == "cowrie.log.closed" or eventid == "cowrie.session.closed":

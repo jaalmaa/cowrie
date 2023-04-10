@@ -27,6 +27,7 @@ __all__ = [
     "iptables",
     "last",
     "ls",
+    "lspci",
     "nc",
     "netstat",
     "nohup",
